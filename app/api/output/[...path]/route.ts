@@ -5,7 +5,7 @@ import mime from "mime";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
     // Await params as required in newer Next.js versions
