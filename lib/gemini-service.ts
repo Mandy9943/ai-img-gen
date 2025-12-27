@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import mime from "mime";
+import { createHash } from "node:crypto";
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -86,7 +87,11 @@ export async function saveImageLocally(
 
   const filePath = path.join(targetDir, filename);
   await writeFile(filePath, buffer);
-  return `/output/${subDir ? subDir + "/" : ""}${filename}`; // Public URL
+  return `/api/output/${subDir ? subDir + "/" : ""}${filename}`; // Point to the serving API
+}
+
+export function getApiKeyHash(apiKey: string) {
+  return createHash("sha256").update(apiKey).digest("hex").slice(0, 12);
 }
 
 export async function cleanupOldSessions(

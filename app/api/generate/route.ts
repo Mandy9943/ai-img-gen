@@ -1,6 +1,7 @@
 import {
   cleanupOldSessions,
   generateImage,
+  getApiKeyHash,
   saveImageLocally,
 } from "@/lib/gemini-service";
 import { NextRequest, NextResponse } from "next/server";
@@ -41,7 +42,8 @@ export async function POST(req: NextRequest) {
 
     const configs = validation.data;
     const limit = pLimit(10);
-    const sessionId = `session-${Date.now()}`;
+    const userHash = getApiKeyHash(apiKey);
+    const sessionId = `session-${userHash}-${Date.now()}`;
 
     const tasks = configs.map((config, index) =>
       limit(async () => {

@@ -3,9 +3,12 @@
 import JSZip from "jszip";
 import {
   CheckCircle2,
+  ChevronRight,
+  Clock,
   Download,
   Eye,
   EyeOff,
+  History,
   Image as ImageIcon,
   Key,
   Loader2,
@@ -35,26 +38,57 @@ const DEFAULT_JSON = JSON.stringify(
   2
 );
 
+interface SessionHistory {
+  id: string;
+  createdAt: string;
+  images: string[];
+}
+
 export default function Home() {
   const [jsonInput, setJsonInput] = useState(DEFAULT_JSON);
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [results, setResults] = useState<GenerationResult[]>([]);
+  const [history, setHistory] = useState<SessionHistory[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load API Key from localStorage on mount
   useEffect(() => {
     const savedKey = localStorage.getItem("gemini_api_key");
-    if (savedKey) setApiKey(savedKey);
+    if (savedKey) {
+      setApiKey(savedKey);
+      fetchHistory(savedKey);
+    }
   }, []);
+
+  const fetchHistory = async (key: string) => {
+    if (!key) return;
+    setIsLoadingHistory(true);
+    try {
+      const response = await fetch("/api/sessions", {
+        headers: { "x-api-key": key },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setHistory(data.sessions);
+      }
+    } catch (e) {
+      console.error("Failed to fetch history", e);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   // Save API Key to localStorage when it changes
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newKey = e.target.value;
     setApiKey(newKey);
     localStorage.setItem("gemini_api_key", newKey);
+    if (newKey) fetchHistory(newKey);
+    else setHistory([]);
   };
 
   const validateJson = () => {
@@ -108,10 +142,39 @@ export default function Home() {
       setResults(
         data.results.map((r: any) => ({ ...r, sessionId: data.sessionId }))
       );
+      fetchHistory(apiKey); // Refresh history after generation
     } catch (e: any) {
       setError(e.message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const downloadImagesAsZip = async (urls: string[], sessionId: string) => {
+    setIsDownloading(true);
+    const zip = new JSZip();
+
+    try {
+      const downloadPromises = urls.map(async (url) => {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const fileName = url.split("/").pop() || "image.png";
+        zip.file(fileName, blob);
+      });
+
+      await Promise.all(downloadPromises);
+      const content = await zip.generateAsync({ type: "blob" });
+
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(content);
+      link.download = `ai-images-${sessionId}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e: any) {
+      setError(`Download failed: ${e.message}`);
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -121,33 +184,9 @@ export default function Home() {
     );
     if (successImages.length === 0) return;
 
-    setIsDownloading(true);
-    const zip = new JSZip();
-
-    try {
-      const downloadPromises = successImages.flatMap((result) =>
-        result.urls!.map(async (url) => {
-          const response = await fetch(url);
-          const blob = await response.blob();
-          const fileName = url.split("/").pop() || "image.png";
-          zip.file(fileName, blob);
-        })
-      );
-
-      await Promise.all(downloadPromises);
-      const content = await zip.generateAsync({ type: "blob" });
-
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(content);
-      link.download = `ai-images-${results[0].sessionId || Date.now()}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (e: any) {
-      setError(`Download failed: ${e.message}`);
-    } finally {
-      setIsDownloading(false);
-    }
+    const allUrls = successImages.flatMap((r) => r.urls!);
+    const sessionId = results[0].sessionId || Date.now().toString();
+    await downloadImagesAsZip(allUrls, sessionId);
   };
 
   return (
@@ -323,6 +362,98 @@ export default function Home() {
           </div>
         </section>
       </div>
+
+      {/* History Section */}
+      {apiKey && (
+        <section className="mt-12 p-6 border rounded-xl bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <History className="w-5 h-5 text-blue-500" />
+              <h2 className="text-xl font-bold">Previous Generations</h2>
+            </div>
+            {isLoadingHistory && (
+              <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+            )}
+          </div>
+
+          {history.length === 0 && !isLoadingHistory ? (
+            <div className="text-center py-12 text-zinc-500 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
+              <Clock className="w-8 h-8 mx-auto mb-2 opacity-20" />
+              <p>No previous sessions found for this API Key.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {history.map((session) => (
+                <div
+                  key={session.id}
+                  className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden"
+                >
+                  <div className="p-3 bg-zinc-100 dark:bg-zinc-700/50 flex justify-between items-center">
+                    <span className="text-[10px] font-mono text-zinc-500 truncate max-w-[150px]">
+                      {session.id}
+                    </span>
+                    <span className="text-[10px] text-zinc-500">
+                      {new Date(session.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="p-2 grid grid-cols-4 gap-1">
+                    {session.images.slice(0, 8).map((url, i) => (
+                      <div
+                        key={i}
+                        className="aspect-square relative overflow-hidden rounded bg-zinc-100 dark:bg-zinc-900 group cursor-pointer"
+                        onClick={() => window.open(url, "_blank")}
+                      >
+                        <img
+                          src={url}
+                          alt=""
+                          className="object-cover w-full h-full transition-transform group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <Eye className="w-4 h-4 text-white" />
+                        </div>
+                      </div>
+                    ))}
+                    {session.images.length > 8 && (
+                      <div className="aspect-square flex items-center justify-center bg-zinc-100 dark:bg-zinc-900 rounded text-[10px] font-bold">
+                        +{session.images.length - 8}
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-2 border-t border-zinc-100 dark:border-zinc-700 flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50">
+                    <button
+                      onClick={() =>
+                        downloadImagesAsZip(session.images, session.id)
+                      }
+                      disabled={isDownloading}
+                      className="text-[10px] flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition-colors disabled:opacity-50"
+                    >
+                      <Download className="w-3 h-3" />
+                      Download Session (.zip)
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Load this session's results into the main progress panel for viewing
+                        setResults(
+                          session.images.map((url) => ({
+                            status: "success",
+                            prompt: url.split("/").pop() || "Generated Image",
+                            urls: [url],
+                            sessionId: session.id,
+                          }))
+                        );
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      className="text-[10px] flex items-center gap-1 text-zinc-500 hover:text-blue-500 transition-colors"
+                    >
+                      Restore View <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* FAQ Section */}
       <footer className="mt-12 pt-8 border-t border-zinc-200 dark:border-zinc-800">
