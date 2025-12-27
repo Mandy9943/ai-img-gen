@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import mime from "mime";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const MODEL = "gemini-3-pro-image-preview";
@@ -87,6 +87,29 @@ export async function saveImageLocally(
   const filePath = path.join(targetDir, filename);
   await writeFile(filePath, buffer);
   return `/output/${subDir ? subDir + "/" : ""}${filename}`; // Public URL
+}
+
+export async function cleanupOldSessions(
+  maxAgeMs: number = 24 * 60 * 60 * 1000
+) {
+  try {
+    const files = await readdir(OUTPUT_DIR);
+    const now = Date.now();
+
+    for (const file of files) {
+      if (file.startsWith("session-")) {
+        const filePath = path.join(OUTPUT_DIR, file);
+        const stats = await stat(filePath);
+
+        if (now - stats.mtimeMs > maxAgeMs) {
+          console.log(`Cleaning up old session folder: ${file}`);
+          await rm(filePath, { recursive: true, force: true });
+        }
+      }
+    }
+  } catch (error) {
+    // Ignore if directory doesn't exist yet
+  }
 }
 
 function extensionFromMimeType(mimeType?: string) {

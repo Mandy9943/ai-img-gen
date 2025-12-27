@@ -1,4 +1,8 @@
-import { generateImage, saveImageLocally } from "@/lib/gemini-service";
+import {
+  cleanupOldSessions,
+  generateImage,
+  saveImageLocally,
+} from "@/lib/gemini-service";
 import { NextRequest, NextResponse } from "next/server";
 import pLimit from "p-limit";
 import { z } from "zod";
@@ -14,6 +18,9 @@ const bulkSchema = z.array(
 
 export async function POST(req: NextRequest) {
   try {
+    // Run cleanup in the background (no await) to keep it simple and fast
+    cleanupOldSessions();
+
     const apiKey = req.headers.get("x-api-key");
     if (!apiKey) {
       return NextResponse.json(
