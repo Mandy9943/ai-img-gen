@@ -3,11 +3,18 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { getApiKeyHash } from "@/lib/gemini-service";
 
+const NOINDEX_HEADERS = {
+  "X-Robots-Tag": "noindex, nofollow",
+};
+
 export async function GET(req: NextRequest) {
   try {
     const apiKey = req.headers.get("x-api-key");
     if (!apiKey) {
-      return NextResponse.json({ error: "API Key required" }, { status: 401 });
+      return NextResponse.json(
+        { error: "API Key required" },
+        { status: 401, headers: { ...NOINDEX_HEADERS } }
+      );
     }
 
     const userHash = getApiKeyHash(apiKey);
@@ -18,7 +25,10 @@ export async function GET(req: NextRequest) {
       folders = await readdir(outputDir);
     } catch (e) {
       // Directory might not exist yet
-      return NextResponse.json({ sessions: [] });
+      return NextResponse.json(
+        { sessions: [] },
+        { headers: { ...NOINDEX_HEADERS } }
+      );
     }
 
     const userSessions = [];
@@ -46,10 +56,16 @@ export async function GET(req: NextRequest) {
     // Sort by newest first
     userSessions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    return NextResponse.json({ sessions: userSessions });
+    return NextResponse.json(
+      { sessions: userSessions },
+      { headers: { ...NOINDEX_HEADERS } }
+    );
   } catch (error: any) {
     console.error("Error fetching sessions:", error);
-    return NextResponse.json({ error: "Failed to fetch sessions" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch sessions" },
+      { status: 500, headers: { ...NOINDEX_HEADERS } }
+    );
   }
 }
 

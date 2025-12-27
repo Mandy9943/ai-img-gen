@@ -8,6 +8,10 @@ import { NextRequest, NextResponse } from "next/server";
 import pLimit from "p-limit";
 import { z } from "zod";
 
+const NOINDEX_HEADERS = {
+  "X-Robots-Tag": "noindex, nofollow",
+};
+
 const bulkSchema = z.array(
   z.object({
     prompt: z.string().min(1),
@@ -26,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (!apiKey) {
       return NextResponse.json(
         { error: "API Key is required" },
-        { status: 401 }
+        { status: 401, headers: { ...NOINDEX_HEADERS } }
       );
     }
 
@@ -36,7 +40,7 @@ export async function POST(req: NextRequest) {
     if (!validation.success) {
       return NextResponse.json(
         { error: "Invalid JSON structure", details: validation.error.format() },
-        { status: 400 }
+        { status: 400, headers: { ...NOINDEX_HEADERS } }
       );
     }
 
@@ -81,12 +85,15 @@ export async function POST(req: NextRequest) {
 
     const results = await Promise.all(tasks);
 
-    return NextResponse.json({ results, sessionId });
+    return NextResponse.json(
+      { results, sessionId },
+      { headers: { ...NOINDEX_HEADERS } }
+    );
   } catch (error: any) {
     console.error("Bulk generation error:", error);
     return NextResponse.json(
       { error: "Failed to process bulk request", message: error.message },
-      { status: 500 }
+      { status: 500, headers: { ...NOINDEX_HEADERS } }
     );
   }
 }

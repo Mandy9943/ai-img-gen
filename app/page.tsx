@@ -405,7 +405,7 @@ export default function Home() {
                       >
                         <img
                           src={url}
-                          alt=""
+                          alt={`Generated image ${i + 1} from ${session.id}`}
                           className="object-cover w-full h-full transition-transform group-hover:scale-110"
                         />
                         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -542,6 +542,29 @@ export default function Home() {
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="mt-10 text-center text-xs text-zinc-500">
+          <p>
+            Built by{" "}
+            <a
+              href="https://mandy9943.dev"
+              target="_blank"
+              rel="noopener noreferrer me"
+              className="text-blue-500 hover:underline"
+            >
+              Armando Martin (Mandy9943)
+            </a>{" "}
+            ·{" "}
+            <a
+              href="https://github.com/Mandy9943"
+              target="_blank"
+              rel="noopener noreferrer me"
+              className="text-blue-500 hover:underline"
+            >
+              GitHub
+            </a>
+          </p>
         </div>
       </footer>
     </main>
